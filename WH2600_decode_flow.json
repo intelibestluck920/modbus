@@ -1,0 +1,134 @@
+[
+    {
+        "id": "50d9db4c7d825728",
+        "type": "tab",
+        "label": "Weather Station",
+        "disabled": false,
+        "info": "",
+        "env": []
+    },
+    {
+        "id": "47cf8eb55a94ab29",
+        "type": "debug",
+        "z": "50d9db4c7d825728",
+        "name": "debug 8",
+        "active": false,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "true",
+        "targetType": "full",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 840,
+        "y": 220,
+        "wires": []
+    },
+    {
+        "id": "7e29b1f89fd45721",
+        "type": "inject",
+        "z": "50d9db4c7d825728",
+        "name": "",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "300",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "",
+        "payloadType": "date",
+        "x": 150,
+        "y": 180,
+        "wires": [
+            [
+                "8c3cc45a6fb78ffd"
+            ]
+        ]
+    },
+    {
+        "id": "637cc04f1ac7127f",
+        "type": "split",
+        "z": "50d9db4c7d825728",
+        "name": "",
+        "splt": "\\n",
+        "spltType": "str",
+        "arraySplt": 1,
+        "arraySpltType": "len",
+        "stream": false,
+        "addname": "topic",
+        "x": 610,
+        "y": 240,
+        "wires": [
+            [
+                "47cf8eb55a94ab29",
+                "de9474aecb503503"
+            ]
+        ]
+    },
+    {
+        "id": "8c3cc45a6fb78ffd",
+        "type": "wh2600-status",
+        "z": "50d9db4c7d825728",
+        "name": "",
+        "wh2600": "513660cc652fa595",
+        "x": 400,
+        "y": 240,
+        "wires": [
+            [
+                "637cc04f1ac7127f"
+            ]
+        ]
+    },
+    {
+        "id": "da72800668b7694d",
+        "type": "link out",
+        "z": "50d9db4c7d825728",
+        "name": "outdoor temp ws out",
+        "mode": "link",
+        "links": [
+            "255d8307b9e27b34"
+        ],
+        "x": 1045,
+        "y": 380,
+        "wires": []
+    },
+    {
+        "id": "de9474aecb503503",
+        "type": "switch",
+        "z": "50d9db4c7d825728",
+        "name": "ot",
+        "property": "topic",
+        "propertyType": "msg",
+        "rules": [
+            {
+                "t": "eq",
+                "v": "outdoorTemperature",
+                "vt": "str"
+            }
+        ],
+        "checkall": "true",
+        "repair": false,
+        "outputs": 1,
+        "x": 850,
+        "y": 380,
+        "wires": [
+            [
+                "da72800668b7694d"
+            ]
+        ]
+    },
+    {
+        "id": "513660cc652fa595",
+        "type": "wh2600-config",
+        "name": "Santa Lucia ",
+        "address": "172.22.1.81"
+    }
+]

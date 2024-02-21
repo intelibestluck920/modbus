@@ -1,0 +1,1219 @@
+[
+    {
+        "id": "2aac1dc8fa4876ad",
+        "type": "subflow",
+        "name": "Read UTA (2)",
+        "info": "",
+        "category": "",
+        "in": [
+            {
+                "x": 70,
+                "y": 200,
+                "wires": [
+                    {
+                        "id": "5ed530ce35f1c220"
+                    }
+                ]
+            }
+        ],
+        "out": [
+            {
+                "x": 720,
+                "y": 230,
+                "wires": [
+                    {
+                        "id": "a693aee844761674",
+                        "port": 1
+                    }
+                ]
+            },
+            {
+                "x": 1600,
+                "y": 440,
+                "wires": [
+                    {
+                        "id": "59b9e8a350dfcca7",
+                        "port": 0
+                    }
+                ]
+            },
+            {
+                "x": 1620,
+                "y": 630,
+                "wires": [
+                    {
+                        "id": "d624d79954f4b749",
+                        "port": 0
+                    },
+                    {
+                        "id": "071bc0f98b2990c9",
+                        "port": 2
+                    }
+                ]
+            },
+            {
+                "x": 1380,
+                "y": 180,
+                "wires": [
+                    {
+                        "id": "304e63ae6efaa3ae",
+                        "port": 0
+                    },
+                    {
+                        "id": "71e34f204b52b371",
+                        "port": 0
+                    }
+                ]
+            }
+        ],
+        "env": [],
+        "meta": {},
+        "color": "#DDAA99",
+        "status": {
+            "x": 680,
+            "y": 770,
+            "wires": [
+                {
+                    "id": "3efe96e74d3929cd",
+                    "port": 0
+                }
+            ]
+        }
+    },
+    {
+        "id": "5ed530ce35f1c220",
+        "type": "function",
+        "z": "2aac1dc8fa4876ad",
+        "name": "Set current reading env",
+        "func": "var ap = String(msg.action_point).replace(\"-\", \"_\");\n\nflow.set(\"action_point\", msg.action_point);\nflow.set(\"id\", msg.id);\nflow.set(\"sub_unit\", msg.sub_unit);\nflow.set(\"equip_id\", msg.equip_id);\nflow.set(\"Unit_Host_Name\", msg.Unit_Host_Name);\n\nvar ReadingCount = Number(flow.get(\"$parent.ReadingCount\"))\nflow.set(\"LocalReadingCnt\", 0)\n\nlet ReadingArray = flow.get(\"$parent.GroupArray\")\n\nif (ReadingCount != ReadingArray.length){\n    node.error(\"Il numero di gruppi non corrisponde al numero di file letti: \" + ReadingCount + \" - \" + ReadingArray.length)\n    node.send([[], { payload: \"Il numero di grouppi non corrisponde al numero di file letti\" }])\n}\n\nmsg= {}\nmsg.readingCount = ReadingCount;\nreturn msg;",
+        "outputs": 2,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 310,
+        "y": 200,
+        "wires": [
+            [
+                "a693aee844761674"
+            ],
+            [
+                "d624d79954f4b749"
+            ]
+        ]
+    },
+    {
+        "id": "a693aee844761674",
+        "type": "function",
+        "z": "2aac1dc8fa4876ad",
+        "name": "Get Current Group",
+        "func": "\nvar currentCount = Number(flow.get(\"LocalReadingCnt\"))\nvar totalCount = Number(flow.get(\"$parent.ReadingCount\"))\nnode.log(\"CountIN: \" + currentCount + \" - \" + totalCount);\n\nif (currentCount >= totalCount) {\n    node.send([[],{readDone: true}])\n    node.done()\n    return;\n}\n\nlet CurrentReadingArray = flow.get(\"$parent.GroupArray\")[currentCount]\n\nnode.status({ fill: \"green\", shape: \"ring\", text: \"Reding: \" + CurrentReadingArray.name });\nmsg = {}\nnode.log(\"Element: \"+JSON.stringify(CurrentReadingArray.list[0]))\nmsg.fc = Number(CurrentReadingArray.list[0].read_function);\nmsg.readingType = CurrentReadingArray.name;\nmsg.address = Number(CurrentReadingArray.list[0].address)\nmsg.swap = Number(CurrentReadingArray.list[0].swap)\nmsg.functionType = CurrentReadingArray.list[0].type;\nmsg.registryCount = Number(CurrentReadingArray.list.length)\nmsg.currentCount = currentCount\nflow.set(\"LocalReadingCnt\", currentCount)\nnode.send([msg, []])\nnode.done()\nreturn;",
+        "outputs": 2,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 590,
+        "y": 180,
+        "wires": [
+            [
+                "304e63ae6efaa3ae"
+            ],
+            []
+        ]
+    },
+    {
+        "id": "304e63ae6efaa3ae",
+        "type": "function",
+        "z": "2aac1dc8fa4876ad",
+        "name": "Set Reading Variables",
+        "func": "//***************************\n//* Salvo il reading type per il parsing dei registri\n//* in base al tipo\n//***************************\nflow.set(\"readingType\", msg.readingType);\nflow.set(\"swapType\", msg.swap);\nflow.set(\"functionType\", String(msg.functionType).toLowerCase());\n\nvar byteSize = 2;\n\nswitch (String(msg.functionType).toLowerCase()){\n    case \"uint8\":\n        byteSize = 1;\n    break;\n    case \"uint16be\":\n    case \"uint16le\":\n        byteSize = 1;\n    break;\n    case \"floatbe\":\n    case \"floatle\":\n        byteSize = 2;\n    break;\n    case \"bigint64le\":\n    case \"bigint64be\":\n        byteSize = 4;\n    break;\n    case \"coil\":\n    case \"bitfield\":\n        byteSize = 1;\n    break;\n}\n\nflow.set(\"byteOffset\", byteSize*2);\n\n\nmsg.totalReading = msg.registryCount //flow.get(\"$parent.\"+msg.readingType + \"Registry\") * byteSize;\nmsg.maxReading = msg.totalReading;\n\nflow.set(\"bit2read\", 0)\n\nif (String(msg.functionType).toLowerCase() == \"bitfield\" || String(msg.functionType).toLowerCase() == \"coil\") {\n    msg.totalReading = 1\n    msg.maxReading = msg.totalReading;\n    flow.set(\"bit2read\", msg.registryCount)\n}\n\nif(msg.maxReading <=0) node.error(\"Reading Number Insufficient\")\n\nnode.status({ fill: \"yellow\", shape: \"dot\", text: \"Wait for \"+msg.readingType })\nnode.done();\n//************************\n//*Parzializzazione delle letture\n//*\n//************************\n\n/*if (msg.totalReading <= 40) {\n    msg.maxReading = msg.totalReading;\n}else if (msg.totalReading > 40) {\n    msg.maxReading = msg.totalReading / (byteSize);\n}*/\n\n\n\n//***************************\n//* Le variabili per ogni meter\n//* vengono passate direttamente nel msg\n//***************************\n\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1040,
+        "y": 180,
+        "wires": [
+            [
+                "92da263afe9ee80d"
+            ]
+        ]
+    },
+    {
+        "id": "92da263afe9ee80d",
+        "type": "function",
+        "z": "2aac1dc8fa4876ad",
+        "name": "Set Reading Loop",
+        "func": "//***************************\n//* Questa variabile serve per \n//* quando arrivano i dati parzializzati\n//***************************\nflow.set(\"startAddress\", msg.address);\n\n//***************************\n//* Ciclo di lettura\n//* Se il numero totale di registri è uguale \n//* al numero massimo di letture lancio un solo comando\n//* altrimenti parzializzo le letture come previsto dal parametro maxReadings\n//***************************\nvar unit_id = 0;\nvar message={};\n\n//***************************\n//* Timer di sicurezza\n//***************************\nflow.set(\"ReadStatus\", 0); //In lettura\n\nvar timer = null\nif (flow.get(\"TimerId\") != null) {\n    timer = flow.get(\"TimerId\")\n    clearTimeout(timer);\n} else {\n    timer = setTimeout(SecurityTimer, 25000);\n    flow.set(\"TimerId\", timer)\n}\n\nif (flow.get(\"id\") !== undefined) {\n    unit_id = flow.get(\"id\")\n    \n    if (msg.totalReading === msg.maxReading) {\n        msg.payload = {\n            'value': unit_id,\n            'fc': msg.fc,\n            'unitid': unit_id,\n            'address': msg.address,\n            'quantity': msg.totalReading\n        };\n\n        return msg;\n    } else if (msg.totalReading < msg.maxReading) {\n        message.payload={\"error\" : \"TotalReadings < MaxReadings\"};\n        message.unit_id=flow.get(\"id\");\n        message.action_point=flow.get(\"action_point\");\n        message.sub_unit=flow.get(\"sub_unit\");\n        node.error(\"Reading Error\", message);\n    } else {\n        //***************************\n        //* Imposto letture a gruppi\n        //***************************\n        ReadRegistry(msg.totalReading, msg.maxReading, msg.address);\n    }\n}else{\n    message.payload={\"error\" : \"ID undefined\"};\n    message.unit_id=flow.get(\"id\");\n    message.action_point=flow.get(\"action_point\");\n    message.sub_unit=flow.get(\"sub_unit\");\n    node.error(\"ID undefined\", message);\n}\nreturn;\n\n\n/**\n* @param {number} totalR\n* @param {number} quantity\n* @param {number} address\n*/\nfunction ReadRegistry(totalR, quantity, address) {\n    if (totalR <= 0) {\n        //node.status({ fill: \"green\", shape: \"dot\", text: \"Done\" });\n        msg.payload = \"\"\n        return msg;\n    }\n\n    setTimeout(function () {\n        var remain = 0;\n\n        if (totalR > quantity) {\n            remain = totalR - quantity;\n\n        } else if (totalR == quantity) {\n            remain = quantity;\n            remain = 0;\n        } else if (totalR < quantity) {\n            quantity = totalR;\n            remain = 0;\n        }\n\n        if (quantity <= 0) {\n            msg.payload = \"\"\n            node.error(\"Quantity 0\");\n            return msg;\n        } else {\n            msg.payload = {\n                'value': unit_id,\n                'fc': msg.fc,\n                'unitid': unit_id,\n                'address': address,\n                'quantity': quantity\n            };\n            node.send(msg);\n            var newAddress = parseInt(address + quantity);\n            ReadRegistry(remain, quantity, newAddress);\n        }\n    }, 1000);\n}\n\nfunction SecurityTimer() {\n    var rs = Number(flow.get(\"ReadStatus\")) //In lettura\n\n    node.log(\"ReadStatus: \" + rs)\n    if (rs == 0) {\n        node.error(\"ID undefined\", message);\n        node.send([[], message]);\n    }\n}",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1040,
+        "y": 240,
+        "wires": [
+            [
+                "71e34f204b52b371"
+            ]
+        ]
+    },
+    {
+        "id": "fe0a336cf9616e0f",
+        "type": "comment",
+        "z": "2aac1dc8fa4876ad",
+        "name": "Debug",
+        "info": "",
+        "x": 1490,
+        "y": 180,
+        "wires": []
+    },
+    {
+        "id": "071bc0f98b2990c9",
+        "type": "function",
+        "z": "2aac1dc8fa4876ad",
+        "name": "Prepare&Send Topic Dinamically",
+        "func": "var startAddress = parseInt(flow.get(\"startAddress\"));\n\nvar action_point = flow.get(\"action_point\");\nvar sub_unit = flow.get(\"sub_unit\");\n\nvar topicStaticPart = flow.get(\"$parent.Site\") + \"/\" + flow.get(\"equip_id\") + \"/\" + flow.get(\"Unit_Host_Name\") +\"/\"+ action_point;\n\nvar values = [];\nvar functionType=String(flow.get(\"functionType\")).toLowerCase();\nvar byteOffset = flow.get(\"byteOffset\");\nvar swap=flow.get(\"swapType\");\nvar readingType = String(flow.get(\"readingType\")).toLowerCase();\nvar currentCount = Number(flow.get(\"LocalReadingCnt\"))\n//var totalCount = msg.readingCount\nvar ap =action_point.replace(\"-\",\"_\");\nnode.log(\"currentCount: \" + currentCount)\nvalues = flow.get(\"$parent.GroupArray\")[currentCount].list //flow.get(\"$parent.\"+readingType);\n//var vstore = flow.get(\"$parent.vstore\");\n//node.log(\"Values: \"+JSON.stringify(values))\n\nvar message = {};\nvar errStatus=0;\n\nif (msg.payload.length == 0) {\n    message.payload=\"Empty message buffer \"+readingType;\n    errStatus=1; \n}\n\nif (values.length == 0) {\n    message.payload=\"Empty Reading Array \"+readingType;\n    errStatus=1;\n}\n\nnode.log(\"msg.payload.length: \" + msg.payload.length);\nnode.log(\"values.length: \" + values.length);\n\nif(msg.payload.length > 0 && values.length > 0 ){\n    const result = await parseData(startAddress, parseInt(msg.modbusRequest.address), msg.responseBuffer.buffer);\n    errStatus=0;\n    //flow.set(ap+\"readDone\", flow.get(ap+\"readDone\")+1);\n    //message.readDone = flow.get(ap+\"readDone\");\n    message.payload = \"Success Reading: \" + readingType + \" (\" + action_point+\")\";\n    \n    flow.set(\"ReadStatus\", 1); //Reset Fine lettura\n    var timer = flow.get(\"TimerId\")\n    clearTimeout(timer);\n\n    flow.set(\"LocalReadingCnt\", Number(currentCount + 1))\n    node.status({ fill: \"green\", shape: \"dot\", text: message.payload })\n    node.send([[],message,[]]);\n    node.done();\n}\n\nif(errStatus==1){\n    //flow.set(ap+\"readDone\", flow.get(ap+\"readDone\")+1);\n    //message.readDone = flow.get(ap+\"readDone\");\n    message.unit_id = flow.get(\"id\");\n    message.action_point = flow.get(\"action_point\");\n    message.sub_unit = flow.get(\"sub_unit\");\n   // message.readingCount = Number(currentCount + 1)\n    flow.set(\"LocalReadingCnt\", Number(currentCount + 1))\n    node.status({ fill: \"red\", shape: \"dot\", text:\"Error: \"+message.payload })\n    node.log(\"Error: \"+message.payload );\n    message.payload= {\"error\" : message.payload};\n\n    flow.set(\"ReadStatus\", 1); //Reset Fine lettura anche se con errore\n    var timer = flow.get(\"TimerId\")\n    clearTimeout(timer);\n\n    node.send([[],[],message]);\n    node.done();\n}\n\nreturn;\n\n/**\n* @param {Number} startAddress\n* @param {Number} offset\n* @param {Buffer} data\n*/\nfunction parseData(startAddress, offset, data){\n    var startNdx= (offset - startAddress) ;\n    var labelNdx = startNdx;\n    var dataNdx = 0;\n    var byteLength = data.length;\n\n    if(startNdx>0) labelNdx=startNdx/2;\n\n    if (functionType != \"bitfield\") {\n        switch (swap) {\n            case 16:\n                data.swap16();\n                break\n            case 32:\n                data.swap32();\n                break;\n            case 64:\n                data.swap64();\n                break;\n        }\n    }\n\n\n    node.log(\"byteLength: \" + byteLength)\n    node.log(\"byteOffset: \" + byteOffset)\n    if (functionType != \"bitfield\" && functionType != \"coil\") {\n        for (dataNdx; dataNdx < byteLength; dataNdx += byteOffset, labelNdx++){\n\n            //node.log(\"dataNdx: \" + dataNdx)\n            var labelObj = values[labelNdx];\n            var cValue = null;\n            var strValue =\"\";\n            \n            if(labelObj.active==1){\n                if(functionType == \"floatbe\"){\n                    cValue = data.readFloatBE(dataNdx) ;\n                    strValue = cValue.toFixed(2);\n                } else if (functionType == \"floatle\") {\n                    cValue = data.readFloatLE(dataNdx) ;\n                    strValue = cValue.toFixed(2);\n                } else if(functionType==\"bigint64le\"){\n                    cValue = data.readBigInt64LE(dataNdx) ;\n                    strValue = cValue.toString();\n                }else if (functionType == \"bigint64be\") {\n                    cValue = data.readBigInt64BE(dataNdx);\n                    strValue = cValue.toString();\n                }else if (functionType == \"uint8\") {\n                    cValue = data.readUInt8(dataNdx);\n                    strValue = cValue.toString();\n                }else if (functionType == \"uint16be\") {\n                    cValue = data.readUInt16BE(dataNdx);\n                    strValue = cValue.toString();\n                }else if (functionType == \"uint16le\") {\n                    cValue = data.readUInt16LE(dataNdx);\n                    strValue = cValue.toString();\n                }\n\n                \n                var message = {};\n                message.topic = topicStaticPart + \"/\" + labelObj.measure_type + \"/\" + sub_unit + \"/\" + labelObj.topic;\n                \n                var numValue=0;\n                \n                numValue = (Number(strValue) * labelObj.scale) + Number(labelObj.offset);\n                //numValue = Number(numValue + Number(labelObj.offset))\n                \n                node.log(\"numValue: \"+numValue)\n                if(Number.isInteger(numValue)){\n                    \n                    message.payload = {\n                        [labelObj.label]: parseInt(numValue).toString() ,\n                    };\n                    \n                // meter[action_point] = {\"measurement\" : labelObj.label, \"value\": parseInt(numValue).toString(),\"type\": readingType, \"topic_start\" : vtopicstart, \"topic_end\" : vtopicend}\n                }else{\n                    message.payload = {\n                        [labelObj.label]: parseFloat(numValue).toFixed(2),\n                    };\n                    \n                    //meter[action_point] = {\"measurement\" : labelObj.label, \"value\": parseFloat(numValue).toFixed(2),\"type\": readingType, \"topic_start\" : vtopicstart, \"topic_end\" : vtopicend}\n                }\n            \n                //vstore.push(meter)\n                node.send([message,[],[]]);\n            }\n        }\n    } else {\n        var bitString = \"\"\n        var bitArray = []\n        if (functionType == \"coil\") {\n            bitString = data.readUint8(0).toString(2).padStart(8, \"0\")\n            bitArray = bitString.split(\"\")\n        } else {\n            bitString = data.readUInt16BE(0).toString(2).padStart(16, \"0\")\n            bitArray = bitString.split(\"\")\n        }\n        var bitLength = bitString.length - 1\n        //node.log(\"Data string: \" + bitString)\n        //node.log(\"Data array: \" + bitArray)\n\n        var bitCount = Number(flow.get(\"bit2read\"))\n        dataNdx = 0;\n\n        for (dataNdx; dataNdx < bitCount; dataNdx++) {\n            var labelObj = values[dataNdx];\n            if (labelObj.active == 1) {\n                var bitMsg = {}\n                bitMsg.topic = topicStaticPart + \"/\" + labelObj.measure_type + \"/\" + sub_unit + \"/\" + labelObj.topic;\n                var bitIndex = bitLength - dataNdx\n                bitMsg.payload = {\n                    [labelObj.label]: Number(bitArray[bitIndex]),\n                }\n\n                node.send([bitMsg, [], []]);\n            }\n        }\n    }\n    //flow.set(\"$parent.vstore\", vstore);\n    return 1;\n}",
+        "outputs": 3,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1100,
+        "y": 420,
+        "wires": [
+            [
+                "c1b349fa588a7dfa"
+            ],
+            [
+                "be3b1dfaac304615"
+            ],
+            [
+                "be3b1dfaac304615"
+            ]
+        ]
+    },
+    {
+        "id": "c1b349fa588a7dfa",
+        "type": "function",
+        "z": "2aac1dc8fa4876ad",
+        "name": "Add Timestamp",
+        "func": "\n//lnk 0=wifi,1=lora\n\n//msg.payload.lnk=1;\nif(msg.topic !== undefined){\n    //node.warn(\"Sending topic\")\n    let t = new Date().getTime()\n    t = t * 1000000; //da millisecondi a nanosecondi\n    let V5Payload = {\n        protocolVersion: 5,// opzionale\n        userProperties: { \"timestamp\": t.toString() },\n        topic: msg.topic,\n        payload: msg.payload,\n        retain: true,//opzionale\n        qos: 2,//opzionale\n    // responseTopic: \"v5 reply\"//opzionale\n    }\n\n    return V5Payload;\n}\n\nreturn {};",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1400,
+        "y": 400,
+        "wires": [
+            [
+                "59b9e8a350dfcca7"
+            ]
+        ]
+    },
+    {
+        "id": "59b9e8a350dfcca7",
+        "type": "switch",
+        "z": "2aac1dc8fa4876ad",
+        "name": "Check valid topic",
+        "property": "topic",
+        "propertyType": "msg",
+        "rules": [
+            {
+                "t": "nempty"
+            }
+        ],
+        "checkall": "true",
+        "repair": false,
+        "outputs": 1,
+        "x": 1410,
+        "y": 440,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "be3b1dfaac304615",
+        "type": "delay",
+        "z": "2aac1dc8fa4876ad",
+        "name": "",
+        "pauseType": "delay",
+        "timeout": "3",
+        "timeoutUnits": "seconds",
+        "rate": "1",
+        "nbRateUnits": "1",
+        "rateUnits": "second",
+        "randomFirst": "1",
+        "randomLast": "5",
+        "randomUnits": "seconds",
+        "drop": false,
+        "allowrate": false,
+        "outputs": 1,
+        "x": 950,
+        "y": 570,
+        "wires": [
+            [
+                "f827ebc3641f2372"
+            ]
+        ]
+    },
+    {
+        "id": "e23fccba08c0c166",
+        "type": "comment",
+        "z": "2aac1dc8fa4876ad",
+        "name": "Output to topics",
+        "info": "",
+        "x": 1730,
+        "y": 440,
+        "wires": []
+    },
+    {
+        "id": "f9de974e37c46fc0",
+        "type": "comment",
+        "z": "2aac1dc8fa4876ad",
+        "name": "Task Error",
+        "info": "",
+        "x": 1710,
+        "y": 630,
+        "wires": []
+    },
+    {
+        "id": "3efe96e74d3929cd",
+        "type": "status",
+        "z": "2aac1dc8fa4876ad",
+        "name": "",
+        "scope": [
+            "5ed530ce35f1c220",
+            "a693aee844761674",
+            "304e63ae6efaa3ae",
+            "92da263afe9ee80d",
+            "071bc0f98b2990c9",
+            "c1b349fa588a7dfa",
+            "59b9e8a350dfcca7"
+        ],
+        "x": 560,
+        "y": 770,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "ef99df55d58e220d",
+        "type": "comment",
+        "z": "2aac1dc8fa4876ad",
+        "name": "Normal Exit Finish List",
+        "info": "",
+        "x": 740,
+        "y": 270,
+        "wires": []
+    },
+    {
+        "id": "71e34f204b52b371",
+        "type": "modbus-flex-getter",
+        "z": "2aac1dc8fa4876ad",
+        "name": "Santa Lucia iSTCMU-CT",
+        "showStatusActivities": false,
+        "showErrors": false,
+        "showWarnings": true,
+        "logIOActivities": false,
+        "server": "a7951295f0841b90",
+        "useIOFile": false,
+        "ioFile": "",
+        "useIOForPayload": false,
+        "emptyMsgOnFail": true,
+        "keepMsgProperties": false,
+        "delayOnStart": false,
+        "startDelayTime": "",
+        "x": 1070,
+        "y": 320,
+        "wires": [
+            [
+                "071bc0f98b2990c9"
+            ],
+            []
+        ]
+    },
+    {
+        "id": "a7951295f0841b90",
+        "type": "modbus-client",
+        "z": "2aac1dc8fa4876ad",
+        "name": "Santa Lucia stcmu-ct",
+        "clienttype": "tcp",
+        "bufferCommands": true,
+        "stateLogEnabled": false,
+        "queueLogEnabled": false,
+        "failureLogEnabled": true,
+        "tcpHost": "172.22.1.43",
+        "tcpPort": "502",
+        "tcpType": "DEFAULT",
+        "serialPort": "/dev/ttyUSB",
+        "serialType": "RTU-BUFFERD",
+        "serialBaudrate": "9600",
+        "serialDatabits": "8",
+        "serialStopbits": "1",
+        "serialParity": "none",
+        "serialConnectionDelay": "100",
+        "serialAsciiResponseStartDelimiter": "0x3A",
+        "unit_id": "",
+        "commandDelay": "1",
+        "clientTimeout": "1000",
+        "reconnectOnTimeout": true,
+        "reconnectTimeout": "2000",
+        "parallelUnitIdsAllowed": true,
+        "showWarnings": true,
+        "showLogs": true
+    },
+    {
+        "id": "d624d79954f4b749",
+        "type": "junction",
+        "z": "2aac1dc8fa4876ad",
+        "x": 450,
+        "y": 620,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "f827ebc3641f2372",
+        "type": "junction",
+        "z": "2aac1dc8fa4876ad",
+        "x": 540,
+        "y": 510,
+        "wires": [
+            [
+                "a693aee844761674"
+            ]
+        ]
+    },
+    {
+        "id": "b269adb25d36d2f6",
+        "type": "subflow",
+        "name": "Read Meter List",
+        "info": "",
+        "category": "",
+        "in": [
+            {
+                "x": 40,
+                "y": 40,
+                "wires": [
+                    {
+                        "id": "ead8744a18cc6cd1"
+                    }
+                ]
+            }
+        ],
+        "out": [
+            {
+                "x": 830,
+                "y": 40,
+                "wires": [
+                    {
+                        "id": "8f53c6949b9dcfe2",
+                        "port": 0
+                    }
+                ]
+            }
+        ],
+        "env": [],
+        "meta": {},
+        "color": "#DDAA99",
+        "status": {
+            "x": 480,
+            "y": 240,
+            "wires": [
+                {
+                    "id": "ead33a9ae031e49a",
+                    "port": 0
+                }
+            ]
+        }
+    },
+    {
+        "id": "ead8744a18cc6cd1",
+        "type": "file in",
+        "z": "b269adb25d36d2f6",
+        "name": "Read File",
+        "filename": "meters",
+        "filenameType": "msg",
+        "format": "utf8",
+        "chunk": false,
+        "sendError": false,
+        "encoding": "none",
+        "allProps": false,
+        "x": 180,
+        "y": 40,
+        "wires": [
+            [
+                "805942a194c40f80"
+            ]
+        ]
+    },
+    {
+        "id": "805942a194c40f80",
+        "type": "csv",
+        "z": "b269adb25d36d2f6",
+        "name": "Convert File to Object Array",
+        "sep": ",",
+        "hdrin": true,
+        "hdrout": "none",
+        "multi": "mult",
+        "ret": "\\n",
+        "temp": "",
+        "skip": "0",
+        "strings": false,
+        "include_empty_strings": "",
+        "include_null_values": "",
+        "x": 400,
+        "y": 40,
+        "wires": [
+            [
+                "8f53c6949b9dcfe2"
+            ]
+        ]
+    },
+    {
+        "id": "8f53c6949b9dcfe2",
+        "type": "function",
+        "z": "b269adb25d36d2f6",
+        "name": "Store Meter Array",
+        "func": "flow.set(\"$parent.MeterArray\", msg.payload)\nnode.status({ fill: \"green\", shape: \"dot\", text: \"Meters: \" + msg.payload.length});\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 660,
+        "y": 40,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "ead33a9ae031e49a",
+        "type": "status",
+        "z": "b269adb25d36d2f6",
+        "name": "",
+        "scope": null,
+        "x": 280,
+        "y": 240,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "b51adc4ad1cc71d5",
+        "type": "subflow",
+        "name": "Read Label And Topics",
+        "info": "",
+        "category": "",
+        "in": [
+            {
+                "x": 40,
+                "y": 140,
+                "wires": [
+                    {
+                        "id": "2de5afc6d2b6f180"
+                    }
+                ]
+            }
+        ],
+        "out": [
+            {
+                "x": 1060,
+                "y": 140,
+                "wires": [
+                    {
+                        "id": "a9e76555dfa75946",
+                        "port": 0
+                    }
+                ]
+            }
+        ],
+        "env": [],
+        "meta": {},
+        "color": "#DDAA99",
+        "status": {
+            "x": 640,
+            "y": 260,
+            "wires": [
+                {
+                    "id": "d82cea603d0b8dc3",
+                    "port": 0
+                }
+            ]
+        }
+    },
+    {
+        "id": "2de5afc6d2b6f180",
+        "type": "fs-file-lister",
+        "z": "b51adc4ad1cc71d5",
+        "name": "Read folder",
+        "start": "/data/gf1",
+        "pattern": "",
+        "folders": "*",
+        "hidden": false,
+        "lstype": "files",
+        "path": true,
+        "single": false,
+        "depth": 0,
+        "stat": false,
+        "showWarnings": false,
+        "x": 180,
+        "y": 140,
+        "wires": [
+            [
+                "3629adf7c4572890"
+            ]
+        ]
+    },
+    {
+        "id": "3629adf7c4572890",
+        "type": "file in",
+        "z": "b51adc4ad1cc71d5",
+        "name": "Read File",
+        "filename": "payload",
+        "filenameType": "msg",
+        "format": "utf8",
+        "chunk": false,
+        "sendError": false,
+        "encoding": "none",
+        "allProps": false,
+        "x": 360,
+        "y": 140,
+        "wires": [
+            [
+                "77f684ec53b36987"
+            ]
+        ]
+    },
+    {
+        "id": "77f684ec53b36987",
+        "type": "csv",
+        "z": "b51adc4ad1cc71d5",
+        "name": "Convert File to Object Array",
+        "sep": ",",
+        "hdrin": true,
+        "hdrout": "none",
+        "multi": "mult",
+        "ret": "\\n",
+        "temp": "",
+        "skip": "0",
+        "strings": false,
+        "include_empty_strings": "",
+        "include_null_values": "",
+        "x": 610,
+        "y": 140,
+        "wires": [
+            [
+                "a9e76555dfa75946"
+            ]
+        ]
+    },
+    {
+        "id": "a2f8be86b3e0ee33",
+        "type": "function",
+        "z": "b51adc4ad1cc71d5",
+        "d": true,
+        "name": "Store Array in List",
+        "func": "var tmpGA = flow.get(\"$parent.GroupArray\")\nvar tmpRC = Number(flow.get(\"$parent.ReadingCount\"))\n\nlet arrayObj = {}\narrayObj.name = path.basename(msg.filename, \".csv\");\narrayObj.list = msg.payload\ntmpGA.push(arrayObj)\nflow.set(\"$parent.GroupArray\", tmpGA)\nflow.set(\"$parent.ReadingCount\", Number(tmpRC+1 ))\nnode.status({ fill: \"green\", shape: \"dot\", text: \"Reading Array: \" + Number(tmpRC + 1)});\nnode.done()\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [
+            {
+                "var": "path",
+                "module": "path"
+            }
+        ],
+        "x": 890,
+        "y": 40,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "d82cea603d0b8dc3",
+        "type": "status",
+        "z": "b51adc4ad1cc71d5",
+        "name": "",
+        "scope": [
+            "a2f8be86b3e0ee33"
+        ],
+        "x": 480,
+        "y": 260,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "a9e76555dfa75946",
+        "type": "function",
+        "z": "b51adc4ad1cc71d5",
+        "name": "Array Parser/Storing Lists",
+        "func": "let arrayCnt = 1\nlet arrayBasename = path.basename(msg.filename, \".csv\")+arrayCnt;\nvar tmpGA = flow.get(\"$parent.GroupArray\")\nvar tmpList = []\n\nvar tmpRC = Number(flow.get(\"$parent.ReadingCount\"))\n\nmsg.payload.forEach(function(element) {\n    node.log(\"Element: \"+JSON.stringify(element))\n    if(element.label == \"---\"){\n        let arrayObj = {}\n        arrayObj.name = arrayBasename\n        arrayObj.list = tmpList\n        tmpGA.push(arrayObj)\n        //Azzero la lista \n        arrayCnt += 1\n        tmpRC +=1\n        arrayBasename = path.basename(msg.filename, \".csv\") + arrayCnt;\n        tmpList = []\n       // node.log(\"ArrayName: \" + arrayBasename)\n        node.status({ fill: \"green\", shape: \"dot\", text: \"Storing Array: \" +arrayBasename});\n        node.done()\n    }else{\n        tmpList.push(element)\n    }\n});\n\n//scrivo l'ultimo array o l'intero array se non ci sono delimitatori\nlet arrayObj = {}\narrayObj.name = arrayBasename\narrayObj.list = tmpList\ntmpGA.push(arrayObj)\nnode.status({ fill: \"green\", shape: \"dot\", text: \"Storing Array: \" + arrayBasename });\nnode.done()\n\nflow.set(\"$parent.GroupArray\", tmpGA)\nflow.set(\"$parent.ReadingCount\", Number(tmpRC + 1))\ntmpList = []\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [
+            {
+                "var": "path",
+                "module": "path"
+            }
+        ],
+        "x": 890,
+        "y": 140,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "7046562259e7a602",
+        "type": "tab",
+        "label": "Letture GF1 Bluebox",
+        "disabled": false,
+        "info": "",
+        "env": []
+    },
+    {
+        "id": "624a88f2e1fa0c51",
+        "type": "inject",
+        "z": "7046562259e7a602",
+        "name": "",
+        "props": [
+            {
+                "p": "ts",
+                "v": "",
+                "vt": "date"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": true,
+        "onceDelay": 0.1,
+        "topic": "",
+        "x": 150,
+        "y": 280,
+        "wires": [
+            [
+                "878fea8ed6a5855e"
+            ]
+        ]
+    },
+    {
+        "id": "6f0841ae469ee3f9",
+        "type": "subflow:b51adc4ad1cc71d5",
+        "z": "7046562259e7a602",
+        "name": "Read Label And Topics",
+        "env": [
+            {
+                "name": "flexdash_grid",
+                "value": "",
+                "type": "str"
+            }
+        ],
+        "x": 820,
+        "y": 220,
+        "wires": [
+            [
+                "6d92651b18fe3dab"
+            ]
+        ]
+    },
+    {
+        "id": "6d92651b18fe3dab",
+        "type": "debug",
+        "z": "7046562259e7a602",
+        "name": "debug 48",
+        "active": false,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "true",
+        "targetType": "full",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1140,
+        "y": 220,
+        "wires": []
+    },
+    {
+        "id": "eb6a16acd5f30f2a",
+        "type": "subflow:b269adb25d36d2f6",
+        "z": "7046562259e7a602",
+        "name": "Read Device List",
+        "env": [
+            {
+                "name": "flexdash_grid",
+                "value": "",
+                "type": "str"
+            }
+        ],
+        "x": 810,
+        "y": 280,
+        "wires": [
+            [
+                "2b0d0ccb51bbab9d",
+                "d99635024c410f0d"
+            ]
+        ]
+    },
+    {
+        "id": "6e2463af1d7812f8",
+        "type": "function",
+        "z": "7046562259e7a602",
+        "name": "Create Flow Array",
+        "func": "flow.set(\"GroupArray\", [])\nflow.set(\"MeterArray\", [])\nflow.set(\"ReadingCount\", 0)\nmsg={}\nmsg.payload = {\n    \"start\": \"/data/gf1/letture\",\n    \"pattern\": \"*.csv\"\n}\nmsg.meters = \"/data/gf1/gf1_slucia.csv\"\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 560,
+        "y": 280,
+        "wires": [
+            [
+                "6f0841ae469ee3f9",
+                "eb6a16acd5f30f2a"
+            ]
+        ]
+    },
+    {
+        "id": "2b0d0ccb51bbab9d",
+        "type": "debug",
+        "z": "7046562259e7a602",
+        "name": "debug 49",
+        "active": false,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "true",
+        "targetType": "full",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1040,
+        "y": 340,
+        "wires": []
+    },
+    {
+        "id": "bcf2f3c5ca2ccb2b",
+        "type": "delay",
+        "z": "7046562259e7a602",
+        "name": "",
+        "pauseType": "delay",
+        "timeout": "3",
+        "timeoutUnits": "seconds",
+        "rate": "1",
+        "nbRateUnits": "1",
+        "rateUnits": "second",
+        "randomFirst": "1",
+        "randomLast": "5",
+        "randomUnits": "seconds",
+        "drop": false,
+        "allowrate": false,
+        "outputs": 1,
+        "x": 1270,
+        "y": 280,
+        "wires": [
+            [
+                "bf10abf6a4cd6b9a"
+            ]
+        ]
+    },
+    {
+        "id": "17650a79ebb5bc1c",
+        "type": "debug",
+        "z": "7046562259e7a602",
+        "name": "Finita Lista letture",
+        "active": false,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "true",
+        "targetType": "full",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 2310,
+        "y": 190,
+        "wires": []
+    },
+    {
+        "id": "b82831efed49d261",
+        "type": "debug",
+        "z": "7046562259e7a602",
+        "name": "Debug",
+        "active": false,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "true",
+        "targetType": "full",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 2270,
+        "y": 420,
+        "wires": []
+    },
+    {
+        "id": "57cee828791e10e9",
+        "type": "catch",
+        "z": "7046562259e7a602",
+        "name": "",
+        "scope": [
+            "5bb7239bdd37541c"
+        ],
+        "uncaught": false,
+        "x": 1690,
+        "y": 600,
+        "wires": [
+            [
+                "4c7a0d258b95c6fe",
+                "45bb96fa16d61701"
+            ]
+        ]
+    },
+    {
+        "id": "4c7a0d258b95c6fe",
+        "type": "debug",
+        "z": "7046562259e7a602",
+        "name": "Unhandled Errors",
+        "active": false,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "true",
+        "targetType": "full",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1980,
+        "y": 600,
+        "wires": []
+    },
+    {
+        "id": "5bb7239bdd37541c",
+        "type": "subflow:2aac1dc8fa4876ad",
+        "z": "7046562259e7a602",
+        "name": "",
+        "env": [
+            {
+                "name": "flexdash_grid",
+                "value": "",
+                "type": "str"
+            }
+        ],
+        "x": 1900,
+        "y": 200,
+        "wires": [
+            [
+                "17650a79ebb5bc1c",
+                "7e586af38cfd2aa8"
+            ],
+            [
+                "2553d45a5530248f",
+                "35a359241981d5d0"
+            ],
+            [
+                "63850dabd3c9826a",
+                "45bb96fa16d61701"
+            ],
+            [
+                "b82831efed49d261"
+            ]
+        ]
+    },
+    {
+        "id": "d99635024c410f0d",
+        "type": "function",
+        "z": "7046562259e7a602",
+        "name": "Set Flow Globals",
+        "func": "var Site=\"krn001\";\n//var Equip_ID=\"cta1\";\n//var Unit_Host_name = \"isamu-uta1\";\n\nflow.set('Site',Site);\n//flow.set('Equip_ID',Equip_ID);\n//flow.set('Unit_Host_name',Unit_Host_name);\n\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1070,
+        "y": 280,
+        "wires": [
+            [
+                "bcf2f3c5ca2ccb2b"
+            ]
+        ]
+    },
+    {
+        "id": "63850dabd3c9826a",
+        "type": "debug",
+        "z": "7046562259e7a602",
+        "name": "Task Errors",
+        "active": false,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "true",
+        "targetType": "full",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 2290,
+        "y": 360,
+        "wires": []
+    },
+    {
+        "id": "2553d45a5530248f",
+        "type": "debug",
+        "z": "7046562259e7a602",
+        "name": "Topics",
+        "active": false,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 2270,
+        "y": 300,
+        "wires": []
+    },
+    {
+        "id": "878fea8ed6a5855e",
+        "type": "function",
+        "z": "7046562259e7a602",
+        "name": "Set Flow Start",
+        "func": "flow.set(\"done\", false);\nflow.set(\"stop\", false);\n\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 320,
+        "y": 280,
+        "wires": [
+            [
+                "6e2463af1d7812f8"
+            ]
+        ]
+    },
+    {
+        "id": "bf10abf6a4cd6b9a",
+        "type": "function",
+        "z": "7046562259e7a602",
+        "name": "Meters Loop",
+        "func": "var meterNdx = 0;\nvar maxLength = flow.get(\"MeterArray\").length;\nvar currentElement={};\nflow.set(\"pending\", false);\nflow.set(\"retry\", 0);\nvar fallBackCnt=0;\n\nMetersLoop();\nreturn;\n\nfunction MetersLoop() {\n    if(flow.get(\"stop\")) {\n        node.status({ fill: \"blue\", shape: \"dot\", text: \"Stopped by user\" })\n        return;\n    }\n    return new Promise(function (resolve, reject) {\n        (function WaitReadingGroup() {\n            \n            if (Boolean(flow.get(\"done\"))) return resolve();\n\n            setTimeout(SendOnTime, 1000);\n            node.done();\n        })();\n    }).then(()=>{//Se la lista dei meters è terminata allora esco e lancio un nuovo gruppo di letture\n        node.status({ fill: \"green\", shape: \"dot\", text: \"Done\" })\n        var objMsg={};\n        objMsg.payload = \"Start New Group\";\n        node.send([[], objMsg], []);\n        node.done();\n    }).catch((e) =>{\n        node.error(\"errore:\"+e);\n    });\n}\n\nfunction SendOnTime(){\n    \n    //if (flow.get(\"stop\")) return;\n\n    if (!Boolean(flow.get(\"pending\"))){\n        flow.set(\"pending\", true);\n        var element = flow.get(\"MeterArray\")[meterNdx];\n        meterNdx++;\n        if(element.active==1){\n       \n            if(flow.get(\"retry\")>0){\n                node.status({ fill: \"yellow\", shape: \"ring\", text: \"Resend: \" + element.label });\n                node.log(\"Resend: \" + element.label);\n            }else{\n                node.status({ fill: \"yellow\", shape: \"ring\", text: \"Send: \" + element.label });    \n                node.log(\"Send: \" + element.label);\n            }\n            \n            currentElement = element;\n            flow.set(\"currentElement\", currentElement);\n            node.send([{\n                \"label\": element.label,\n                \"id\": element.id,\n                \"action_point\": element.action_point,\n                \"sub_unit\": element.sub_unit,\n                \"equip_id\": element.equip_id,\n                \"Unit_Host_Name\": element.Unit_Host_Name,\n            }, [], []]);\n        }else{\n            node.status({ fill: \"blue\", shape: \"ring\", text: \"Skipped by user: \" + element.label });\n            node.log(\"Skipped by user: \" + element.label);\n        }\n        if (meterNdx == maxLength) { flow.set(\"done\", true) }\n        \n    }else{\n        if (fallBackCnt == 15) { \n            fallBackCnt=0;\n            \n            if(flow.get(\"retry\")==2){\n                flow.set(\"retry\", 0);\n                flow.set(\"pending\", false);\n                \n                node.status({ fill: \"red\", shape: \"ring\", text: \"Step forward...\"});\n                var message={};\n                message.payload={\"error\" : \"unit \"+currentElement.label+\" unresponsive - ID: \"+currentElement.id};\n                message.unit_id=currentElement.id;\n                message.action_point=currentElement.action_point;\n                message.sub_unit= currentElement.sub_unit;\n                node.log(\"error: unit \"+currentElement.label+\" unresponsive - ID: \"+currentElement.id);\n                node.send([[], [], [message]]);\n            }else{\n                meterNdx--;\n                node.status({ fill: \"yellow\", shape: \"ring\", text: \"Retry \"+currentElement.label});        \n                flow.set(\"retry\", (flow.get(\"retry\")+1));\n                flow.set(\"pending\", false);\n                node.log( \"Retry \"+currentElement.label);\n            }\n        }else{\n            fallBackCnt++;\n            if(flow.get(\"retry\")>0){\n                node.status({ fill: \"yellow\", shape: \"ring\", text: \"Retry (\"+(flow.get(\"retry\")+1)+\") \"+currentElement.label });    \n            }else{\n                node.status({ fill: \"yellow\", shape: \"ring\", text: \"Reading in progress \"+currentElement.label });        \n            }\n            \n        }\n        \n    }\n    node.done();\n    setTimeout(MetersLoop, 2000);\n}",
+        "outputs": 3,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1470,
+        "y": 280,
+        "wires": [
+            [
+                "5bb7239bdd37541c"
+            ],
+            [
+                "fc3baf414c608df7"
+            ],
+            [
+                "45bb96fa16d61701"
+            ]
+        ]
+    },
+    {
+        "id": "45bb96fa16d61701",
+        "type": "function",
+        "z": "7046562259e7a602",
+        "name": "Set Error Topic",
+        "func": "var ap=flow.get(\"currentElement\").action_point;\nvar su=flow.get(\"currentElement\").sub_unit;\nvar id=flow.get(\"currentElement\").id;\nvar equip_id = flow.get(\"currentElement\").equip_id;\nvar Unit_Host_Name = flow.get(\"currentElement\").Unit_Host_Name;\n\nvar topic = flow.get('Site') + \"/\" + equip_id + \"/\" + Unit_Host_Name+\"/\"+ap+\"/ALR/\"+su+\"/modbus/\"\nlet t = new Date().getTime()\nt = t * 1000000; //da millisecondi a nanosecondi\n\n//node.warn(msg);\nlet V5Payload = {\n    protocolVersion: 5,// opzionale\n    userProperties: { \"timestamp\": t.toString() },\n    topic: topic,\n    payload: msg.payload,\n    retain: true,//opzionale\n    qos: 2,//opzionale\n}\n\nreturn V5Payload;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1970,
+        "y": 470,
+        "wires": [
+            [
+                "b2604c30d4fb78cf",
+                "35a359241981d5d0"
+            ]
+        ]
+    },
+    {
+        "id": "b2604c30d4fb78cf",
+        "type": "debug",
+        "z": "7046562259e7a602",
+        "name": "Error Message to MqTT",
+        "active": false,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "true",
+        "targetType": "full",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 2000,
+        "y": 530,
+        "wires": []
+    },
+    {
+        "id": "fc3baf414c608df7",
+        "type": "function",
+        "z": "7046562259e7a602",
+        "name": "reset group trigger",
+        "func": "flow.set(\"pending\",false);\nflow.set(\"retry\", 0);\nflow.set(\"done\",false);\n\nvar now = new Date();\nvar yyyy = now.getFullYear();\nvar mm = now.getMonth() < 9 ? \"0\" + (now.getMonth() + 1) : (now.getMonth() + 1); // getMonth() is zero-based\nvar dd = now.getDate() < 10 ? \"0\" + now.getDate() : now.getDate();\nvar hh = now.getHours() < 10 ? \"0\" + now.getHours() : now.getHours();\nvar mmm = now.getMinutes() < 10 ? \"0\" + now.getMinutes() : now.getMinutes();\nvar ss = now.getSeconds() < 10 ? \"0\" + now.getSeconds() : now.getSeconds();\nvar timeStr = dd+\"/\"+mm+\"/\"+yyyy+\" \"+hh+\":\"+mmm;\n\nnode.status({ fill: \"green\", shape: \"dot\", text: \"Last Reading:\"+timeStr });\nnode.log(\"Last Reading:\"+timeStr);\nnode.done();\n//msg.reset = true;\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1800,
+        "y": 290,
+        "wires": [
+            [
+                "ada4851e93556cbc"
+            ]
+        ]
+    },
+    {
+        "id": "ada4851e93556cbc",
+        "type": "delay",
+        "z": "7046562259e7a602",
+        "name": "Next Reading Group (1Min)",
+        "pauseType": "delay",
+        "timeout": "1",
+        "timeoutUnits": "minutes",
+        "rate": "1",
+        "nbRateUnits": "1",
+        "rateUnits": "second",
+        "randomFirst": "1",
+        "randomLast": "5",
+        "randomUnits": "seconds",
+        "drop": false,
+        "allowrate": false,
+        "outputs": 1,
+        "x": 1400,
+        "y": 560,
+        "wires": [
+            [
+                "6e2463af1d7812f8"
+            ]
+        ]
+    },
+    {
+        "id": "7e586af38cfd2aa8",
+        "type": "function",
+        "z": "7046562259e7a602",
+        "name": "reset single trigger",
+        "func": "flow.set(\"pending\",false);\nflow.set(\"retry\", 0);\nmsg.payload=\"reset pending\"\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 2310,
+        "y": 150,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "35a359241981d5d0",
+        "type": "mqtt out",
+        "z": "7046562259e7a602",
+        "name": "Topic to 172.22.1.31",
+        "topic": "",
+        "qos": "",
+        "retain": "",
+        "respTopic": "",
+        "contentType": "",
+        "userProps": "",
+        "correl": "",
+        "expiry": "",
+        "broker": "960defe1.012ca",
+        "x": 2310,
+        "y": 250,
+        "wires": []
+    },
+    {
+        "id": "85b026efc1a21a2d",
+        "type": "function",
+        "z": "7046562259e7a602",
+        "name": "Stop Engine",
+        "func": "flow.set(\"stop\",true);\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 310,
+        "y": 420,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "bdce508f2ea4bd35",
+        "type": "inject",
+        "z": "7046562259e7a602",
+        "name": "Stop",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "Stop",
+        "payloadType": "str",
+        "x": 150,
+        "y": 420,
+        "wires": [
+            [
+                "85b026efc1a21a2d"
+            ]
+        ]
+    },
+    {
+        "id": "0f3080d316318725",
+        "type": "comment",
+        "z": "7046562259e7a602",
+        "name": "Legge tutte le letture elencate nella cartella letture",
+        "info": "",
+        "x": 740,
+        "y": 180,
+        "wires": []
+    },
+    {
+        "id": "960defe1.012ca",
+        "type": "mqtt-broker",
+        "name": "",
+        "broker": "172.22.1.31",
+        "port": "1883",
+        "clientid": "client1",
+        "autoConnect": true,
+        "usetls": false,
+        "protocolVersion": "4",
+        "keepalive": "60",
+        "cleansession": false,
+        "birthTopic": "",
+        "birthQos": "0",
+        "birthPayload": "",
+        "birthMsg": {},
+        "closeTopic": "",
+        "closePayload": "",
+        "closeMsg": {},
+        "willTopic": "",
+        "willQos": "0",
+        "willPayload": "",
+        "willMsg": {},
+        "userProps": "",
+        "sessionExpiry": ""
+    }
+]

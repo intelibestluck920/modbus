@@ -1,0 +1,743 @@
+[
+    {
+        "id": "49df94571a620a56",
+        "type": "subflow",
+        "name": "Parse Payload",
+        "info": "",
+        "category": "",
+        "in": [
+            {
+                "x": 40,
+                "y": 80,
+                "wires": [
+                    {
+                        "id": "aaea8ea8ee8530c7"
+                    },
+                    {
+                        "id": "bfb85891e0019532"
+                    }
+                ]
+            }
+        ],
+        "out": [
+            {
+                "x": 1100,
+                "y": 80,
+                "wires": [
+                    {
+                        "id": "43440ae93b76b8c4",
+                        "port": 0
+                    }
+                ]
+            },
+            {
+                "x": 300,
+                "y": 160,
+                "wires": [
+                    {
+                        "id": "bfb85891e0019532",
+                        "port": 0
+                    }
+                ]
+            }
+        ],
+        "env": [],
+        "meta": {},
+        "color": "#DDAA99"
+    },
+    {
+        "id": "4e9507ba6b1acc7b",
+        "type": "csv",
+        "z": "49df94571a620a56",
+        "name": "Parse Site hierarchy",
+        "sep": "/",
+        "hdrin": "",
+        "hdrout": "",
+        "multi": "one",
+        "ret": "\\n",
+        "temp": "site,equipmentID,unitHostName,actionPoint,meterType,subUnit,subUnitAddress,objLabel,internalDataLabel",
+        "skip": "0",
+        "strings": true,
+        "include_empty_strings": false,
+        "include_null_values": false,
+        "x": 400,
+        "y": 80,
+        "wires": [
+            [
+                "31c42ef96146d194"
+            ]
+        ]
+    },
+    {
+        "id": "aaea8ea8ee8530c7",
+        "type": "change",
+        "z": "49df94571a620a56",
+        "name": "Capture Topic",
+        "rules": [
+            {
+                "t": "move",
+                "p": "payload",
+                "pt": "msg",
+                "to": "measurement",
+                "tot": "msg"
+            },
+            {
+                "t": "set",
+                "p": "payload",
+                "pt": "msg",
+                "to": "topic",
+                "tot": "msg"
+            },
+            {
+                "t": "delete",
+                "p": "retain",
+                "pt": "msg"
+            },
+            {
+                "t": "delete",
+                "p": "qos",
+                "pt": "msg"
+            }
+        ],
+        "action": "",
+        "property": "",
+        "from": "",
+        "to": "",
+        "reg": false,
+        "x": 200,
+        "y": 80,
+        "wires": [
+            [
+                "4e9507ba6b1acc7b"
+            ]
+        ]
+    },
+    {
+        "id": "31c42ef96146d194",
+        "type": "change",
+        "z": "49df94571a620a56",
+        "name": "Get Measurement",
+        "rules": [
+            {
+                "t": "move",
+                "p": "measurement",
+                "pt": "msg",
+                "to": "payload.measurement",
+                "tot": "msg"
+            }
+        ],
+        "action": "",
+        "property": "",
+        "from": "",
+        "to": "",
+        "reg": false,
+        "x": 610,
+        "y": 80,
+        "wires": [
+            [
+                "43440ae93b76b8c4"
+            ]
+        ]
+    },
+    {
+        "id": "43440ae93b76b8c4",
+        "type": "function",
+        "z": "49df94571a620a56",
+        "name": "Setup Message for influxDB",
+        "func": "let measurement= msg.payload.measurement\ndelete msg.payload[\"measurement\"]\nmsg.measurement= Object.keys(measurement)[0]\nlet tags = {...msg.payload,measurement:Object.keys(measurement)[0]}\nmsg.payload = [{'value':measurement[msg.measurement]},tags]\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 840,
+        "y": 80,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "bfb85891e0019532",
+        "type": "switch",
+        "z": "49df94571a620a56",
+        "name": "",
+        "property": "payload",
+        "propertyType": "msg",
+        "rules": [
+            {
+                "t": "hask",
+                "v": "energy_a",
+                "vt": "str"
+            }
+        ],
+        "checkall": "true",
+        "repair": false,
+        "outputs": 1,
+        "x": 170,
+        "y": 160,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "6a1650f7096bdf44",
+        "type": "tab",
+        "label": "DB MQTT Integration",
+        "disabled": false,
+        "info": "",
+        "env": []
+    },
+    {
+        "id": "cd70af946197c271",
+        "type": "mqtt in",
+        "z": "6a1650f7096bdf44",
+        "name": "",
+        "topic": "krn002/cei/#",
+        "qos": "0",
+        "datatype": "json",
+        "broker": "55e61e0a.4ad41",
+        "nl": false,
+        "rap": false,
+        "inputs": 0,
+        "x": 90,
+        "y": 40,
+        "wires": [
+            [
+                "57c816d9593f32ee",
+                "b6b6d456e1d7db48",
+                "d5b5fc7d864bfd8f",
+                "bcda6f215aa95320"
+            ]
+        ]
+    },
+    {
+        "id": "968d3a80759c32e8",
+        "type": "influxdb out",
+        "z": "6a1650f7096bdf44",
+        "influxdb": "4e233360.31bb3c",
+        "name": "Influx db KRN002DB04",
+        "measurement": "measurement",
+        "precision": "",
+        "retentionPolicy": "",
+        "database": "",
+        "retentionPolicyV18Flux": "",
+        "org": "",
+        "bucket": "",
+        "x": 1750,
+        "y": 280,
+        "wires": []
+    },
+    {
+        "id": "0d5b43c6a8af4e10",
+        "type": "catch",
+        "z": "6a1650f7096bdf44",
+        "name": "",
+        "scope": [
+            "968d3a80759c32e8",
+            "bcda6f215aa95320"
+        ],
+        "uncaught": false,
+        "x": 1490,
+        "y": 520,
+        "wires": [
+            [
+                "78bd4caddbd21a38"
+            ]
+        ]
+    },
+    {
+        "id": "78bd4caddbd21a38",
+        "type": "debug",
+        "z": "6a1650f7096bdf44",
+        "name": "DB Errors",
+        "active": false,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "true",
+        "targetType": "full",
+        "x": 1660,
+        "y": 520,
+        "wires": []
+    },
+    {
+        "id": "d5b5fc7d864bfd8f",
+        "type": "debug",
+        "z": "6a1650f7096bdf44",
+        "name": "",
+        "active": false,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "true",
+        "targetType": "full",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 590,
+        "y": 140,
+        "wires": []
+    },
+    {
+        "id": "b6b6d456e1d7db48",
+        "type": "trigger",
+        "z": "6a1650f7096bdf44",
+        "name": "",
+        "op1": "",
+        "op2": "Mqtt Fault cei KRN001",
+        "op1type": "nul",
+        "op2type": "str",
+        "duration": "30",
+        "extend": true,
+        "overrideDelay": false,
+        "units": "min",
+        "reset": "",
+        "bytopic": "all",
+        "topic": "topic",
+        "outputs": 1,
+        "x": 290,
+        "y": 100,
+        "wires": [
+            [
+                "7f8e2dc74ca999dc",
+                "b3566b1ad5021546"
+            ]
+        ]
+    },
+    {
+        "id": "b3566b1ad5021546",
+        "type": "change",
+        "z": "6a1650f7096bdf44",
+        "name": "",
+        "rules": [
+            {
+                "t": "set",
+                "p": "payload",
+                "pt": "msg",
+                "to": "reset",
+                "tot": "str"
+            }
+        ],
+        "action": "",
+        "property": "",
+        "from": "",
+        "to": "",
+        "reg": false,
+        "x": 300,
+        "y": 200,
+        "wires": [
+            [
+                "57c816d9593f32ee"
+            ]
+        ]
+    },
+    {
+        "id": "57c816d9593f32ee",
+        "type": "trigger",
+        "z": "6a1650f7096bdf44",
+        "name": "",
+        "op1": "Mqtt cei krn001OK",
+        "op2": "Mqtt Fault pdv BRC003",
+        "op1type": "str",
+        "op2type": "str",
+        "duration": "0",
+        "extend": true,
+        "overrideDelay": false,
+        "units": "s",
+        "reset": "reset",
+        "bytopic": "all",
+        "topic": "topic",
+        "outputs": 1,
+        "x": 300,
+        "y": 60,
+        "wires": [
+            [
+                "7f8e2dc74ca999dc"
+            ]
+        ]
+    },
+    {
+        "id": "7f8e2dc74ca999dc",
+        "type": "mqtt out",
+        "z": "6a1650f7096bdf44",
+        "name": "",
+        "topic": "krn002/alarm/mqtt/cei",
+        "qos": "2",
+        "retain": "true",
+        "respTopic": "",
+        "contentType": "",
+        "userProps": "",
+        "correl": "",
+        "expiry": "",
+        "broker": "55e61e0a.4ad41",
+        "x": 580,
+        "y": 60,
+        "wires": []
+    },
+    {
+        "id": "fbf78e09c9e499b7",
+        "type": "mqtt in",
+        "z": "6a1650f7096bdf44",
+        "name": "",
+        "topic": "krn002/ct/#",
+        "qos": "0",
+        "datatype": "json",
+        "broker": "55e61e0a.4ad41",
+        "nl": false,
+        "rap": false,
+        "inputs": 0,
+        "x": 80,
+        "y": 300,
+        "wires": [
+            [
+                "3a5042c9830d1abe",
+                "fdeeea6b546e9229",
+                "bcda6f215aa95320"
+            ]
+        ]
+    },
+    {
+        "id": "481d130ef3b753ef",
+        "type": "debug",
+        "z": "6a1650f7096bdf44",
+        "name": "",
+        "active": false,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "false",
+        "x": 1230,
+        "y": 420,
+        "wires": []
+    },
+    {
+        "id": "fdeeea6b546e9229",
+        "type": "trigger",
+        "z": "6a1650f7096bdf44",
+        "name": "",
+        "op1": "",
+        "op2": "Mqtt Fault cei KRN001",
+        "op1type": "nul",
+        "op2type": "str",
+        "duration": "30",
+        "extend": true,
+        "overrideDelay": false,
+        "units": "min",
+        "reset": "",
+        "bytopic": "all",
+        "topic": "topic",
+        "outputs": 1,
+        "x": 290,
+        "y": 340,
+        "wires": [
+            [
+                "dcfbc1ab9fccf27f",
+                "30ee4fc3a136b94f"
+            ]
+        ]
+    },
+    {
+        "id": "30ee4fc3a136b94f",
+        "type": "change",
+        "z": "6a1650f7096bdf44",
+        "name": "",
+        "rules": [
+            {
+                "t": "set",
+                "p": "payload",
+                "pt": "msg",
+                "to": "reset",
+                "tot": "str"
+            }
+        ],
+        "action": "",
+        "property": "",
+        "from": "",
+        "to": "",
+        "reg": false,
+        "x": 300,
+        "y": 440,
+        "wires": [
+            [
+                "3a5042c9830d1abe"
+            ]
+        ]
+    },
+    {
+        "id": "3a5042c9830d1abe",
+        "type": "trigger",
+        "z": "6a1650f7096bdf44",
+        "name": "",
+        "op1": "Mqtt cei krn001OK",
+        "op2": "Mqtt Fault pdv BRC003",
+        "op1type": "str",
+        "op2type": "str",
+        "duration": "0",
+        "extend": true,
+        "overrideDelay": false,
+        "units": "s",
+        "reset": "reset",
+        "bytopic": "all",
+        "topic": "topic",
+        "outputs": 1,
+        "x": 300,
+        "y": 300,
+        "wires": [
+            [
+                "dcfbc1ab9fccf27f"
+            ]
+        ]
+    },
+    {
+        "id": "dcfbc1ab9fccf27f",
+        "type": "mqtt out",
+        "z": "6a1650f7096bdf44",
+        "name": "",
+        "topic": "krn002/alarm/mqtt/cei",
+        "qos": "2",
+        "retain": "true",
+        "respTopic": "",
+        "contentType": "",
+        "userProps": "",
+        "correl": "",
+        "expiry": "",
+        "broker": "55e61e0a.4ad41",
+        "x": 580,
+        "y": 300,
+        "wires": []
+    },
+    {
+        "id": "c45903eed0a1f8b4",
+        "type": "function",
+        "z": "6a1650f7096bdf44",
+        "name": "Add Timestamp/Check Null/Convert Float",
+        "func": "//1674154502323         Standard Millisecond timestamp\n//1674154502323000000   InfluxDB Nanosecond timestamp\n\nif (msg !== undefined){\n    if(msg.payload[0].value==null){\n       // msg.payload[0].value=0;\n        return [[],[msg]];\n    }else if(!isNaN(msg.payload[0].value)){\n        var numValue=msg.payload[0].value;\n        if(Number.isInteger(numValue)){\n            msg.payload[0].value=parseInt(numValue);\n        }else{\n            msg.payload[0].value=parseFloat(numValue);   \n        }\n    }\n    \n    if(msg.userProperties !== undefined){\n        msg.payload[0].time = msg.userProperties.timestamp;    \n    }\n    \n    return [[msg],[]];\n}else{\n    return [[],[{payload: \"invalid\"}]];\n}",
+        "outputs": 2,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1400,
+        "y": 340,
+        "wires": [
+            [
+                "34128409bab507fe",
+                "968d3a80759c32e8"
+            ],
+            [
+                "f4953902663ef9cf"
+            ]
+        ]
+    },
+    {
+        "id": "34128409bab507fe",
+        "type": "debug",
+        "z": "6a1650f7096bdf44",
+        "name": "Topics",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1690,
+        "y": 340,
+        "wires": []
+    },
+    {
+        "id": "f4953902663ef9cf",
+        "type": "debug",
+        "z": "6a1650f7096bdf44",
+        "name": "Scartati",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "true",
+        "targetType": "full",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1700,
+        "y": 380,
+        "wires": []
+    },
+    {
+        "id": "bcda6f215aa95320",
+        "type": "subflow:49df94571a620a56",
+        "z": "6a1650f7096bdf44",
+        "name": "",
+        "env": [],
+        "x": 1040,
+        "y": 340,
+        "wires": [
+            [
+                "c45903eed0a1f8b4"
+            ],
+            [
+                "481d130ef3b753ef"
+            ]
+        ]
+    },
+    {
+        "id": "952e9d6699914df2",
+        "type": "mqtt in",
+        "z": "6a1650f7096bdf44",
+        "name": "",
+        "topic": "krn002/+/KRN002-iSSSU01-2/#",
+        "qos": "0",
+        "datatype": "json",
+        "broker": "55e61e0a.4ad41",
+        "nl": false,
+        "rap": false,
+        "inputs": 0,
+        "x": 150,
+        "y": 540,
+        "wires": [
+            [
+                "277e8c7e01de620e",
+                "af4da895f9c9fdba",
+                "bcda6f215aa95320"
+            ]
+        ]
+    },
+    {
+        "id": "af4da895f9c9fdba",
+        "type": "trigger",
+        "z": "6a1650f7096bdf44",
+        "name": "",
+        "op1": "",
+        "op2": "Mqtt Fault cei KRN001",
+        "op1type": "nul",
+        "op2type": "str",
+        "duration": "30",
+        "extend": true,
+        "overrideDelay": false,
+        "units": "min",
+        "reset": "",
+        "bytopic": "all",
+        "topic": "topic",
+        "outputs": 1,
+        "x": 410,
+        "y": 580,
+        "wires": [
+            [
+                "0fe7dbc3ed7fc2eb",
+                "b72bfb29c984be14"
+            ]
+        ]
+    },
+    {
+        "id": "b72bfb29c984be14",
+        "type": "change",
+        "z": "6a1650f7096bdf44",
+        "name": "",
+        "rules": [
+            {
+                "t": "set",
+                "p": "payload",
+                "pt": "msg",
+                "to": "reset",
+                "tot": "str"
+            }
+        ],
+        "action": "",
+        "property": "",
+        "from": "",
+        "to": "",
+        "reg": false,
+        "x": 420,
+        "y": 640,
+        "wires": [
+            [
+                "277e8c7e01de620e"
+            ]
+        ]
+    },
+    {
+        "id": "277e8c7e01de620e",
+        "type": "trigger",
+        "z": "6a1650f7096bdf44",
+        "name": "",
+        "op1": "Mqtt cei krn001OK",
+        "op2": "Mqtt Fault pdv BRC003",
+        "op1type": "str",
+        "op2type": "str",
+        "duration": "0",
+        "extend": true,
+        "overrideDelay": false,
+        "units": "s",
+        "reset": "reset",
+        "bytopic": "all",
+        "topic": "topic",
+        "outputs": 1,
+        "x": 420,
+        "y": 540,
+        "wires": [
+            [
+                "0fe7dbc3ed7fc2eb"
+            ]
+        ]
+    },
+    {
+        "id": "0fe7dbc3ed7fc2eb",
+        "type": "mqtt out",
+        "z": "6a1650f7096bdf44",
+        "name": "",
+        "topic": "krn002/alarm/mqtt/KRN002-iSSSU01-2",
+        "qos": "2",
+        "retain": "true",
+        "respTopic": "",
+        "contentType": "",
+        "userProps": "",
+        "correl": "",
+        "expiry": "",
+        "broker": "55e61e0a.4ad41",
+        "x": 720,
+        "y": 540,
+        "wires": []
+    },
+    {
+        "id": "55e61e0a.4ad41",
+        "type": "mqtt-broker",
+        "name": "krn002-isssu1-4-broker",
+        "broker": "172.22.4.5",
+        "port": "1883",
+        "clientid": "krn002-isssu1-4-client-1",
+        "autoConnect": true,
+        "usetls": false,
+        "compatmode": false,
+        "protocolVersion": "5",
+        "keepalive": "60",
+        "cleansession": false,
+        "birthTopic": "krnsrv/stats/mqtt/nr1/up",
+        "birthQos": "2",
+        "birthRetain": "true",
+        "birthPayload": "1",
+        "birthMsg": {},
+        "closeTopic": "",
+        "closeQos": "0",
+        "closePayload": "",
+        "closeMsg": {},
+        "willTopic": "krnsrv/stats/mqtt/nr1/down",
+        "willQos": "2",
+        "willRetain": "true",
+        "willPayload": "1",
+        "willMsg": {},
+        "sessionExpiry": ""
+    },
+    {
+        "id": "4e233360.31bb3c",
+        "type": "influxdb",
+        "hostname": "172.22.4.5",
+        "port": "8086",
+        "protocol": "http",
+        "database": "KRN002DB04",
+        "name": "KRN002DB04",
+        "usetls": false,
+        "tls": "",
+        "influxdbVersion": "1.x",
+        "url": "172.22.1.5:8086",
+        "rejectUnauthorized": false
+    }
+]
